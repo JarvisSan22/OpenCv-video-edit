@@ -115,7 +115,9 @@ def video_analysis(filevideo,percent=10):
             
 
 
-def video_background(filevideo,backgroundfile,outtype="gray",percent=10,accumulateWeightedval=0.5,frameweighting=0.6):
+def video_background(filevideo,backgroundfile,
+outtype="gray",percent=10,
+accumulateWeightedval=0.5,frameweighting=0.6,threashval=[0,200]):
     #outtype: "gray", "newfade","pastfade" plus: "_inv"
 
 
@@ -143,25 +145,40 @@ def video_background(filevideo,backgroundfile,outtype="gray",percent=10,accumula
         i+=1
         ret,frame= cap.read()
         frame= rescale_frame(frame,percent=percent)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)[:,:,0]
+
         gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
 
         if (avg is None) or (i % 50 ==1):
-            avg = gray.copy().astype("float")
+            if avg is None:
+                cv2.imwrite("frame_1.jpg",frame)
+            if "hsv" in outtype:
+                avg=hsv.copy().astype("float")
+                
+            else:
+                avg = gray.copy().astype("float")
             h,w,c=frame.shape
             
             continue
 
         if i<10:
-            frameDelta,newframeDelta=generate_frame_delta(gray,avg)
+            if "hsv" in outtype:
+                frameDelta,newframeDelta=generate_frame_delta(hsv,avg)
+            else:
+                frameDelta,newframeDelta=generate_frame_delta(gray,avg)
         else:
-            frameDelta,newframeDelta=generate_frame_delta(gray,avg,frameDelta=frameDelta)
+              if "hsv" in outtype:
+                frameDelta,newframeDelta=generate_frame_delta(hsv,avg,frameDelta=frameDelta)
+              else:
+                frameDelta,newframeDelta=generate_frame_delta(gray,avg,frameDelta=frameDelta)
 
         #領域を抽出
 
-        threash=cv2.threshold(frameDelta,50,225,cv2.THRESH_BINARY)[1]
+        threash=cv2.threshold(frameDelta,threashval[0],threashval[1],cv2.THRESH_BINARY)[1]
         #cv2.THRESH_BINARY_INV
-        newthreash=cv2.threshold(newframeDelta,50,225,ThreashType)[1]
-        graythreash=cv2.threshold(gray,50,225,ThreashType)[1]
+        newthreash=cv2.threshold(newframeDelta,threashval[0],threashval[1],ThreashType)[1]
+        graythreash=cv2.threshold(gray,threashval[0],threashval[1],ThreashType)[1]
+        hsvthreash=cv2.threshold(hsv,threashval[0],threashval[1],ThreashType)[1]
 
         if background is None:
             h,w,c=frame.shape
@@ -178,16 +195,18 @@ def video_background(filevideo,backgroundfile,outtype="gray",percent=10,accumula
 
             mask=GrayTo3DGray(combine_threash)
             
-        elif "gray" in outtype:
+        elif "gray" in outtype.lower():
             mask=GrayTo3DGray(graythreash)
-        elif "newfade" in outtype:
+        elif "newfade" in outtype.lower():
             mask=GrayTo3DGray(newthreash)
-        elif "pastfade" in outtype:
+        elif "pastfade" in outtype.lower():
             mask=GrayTo3DGray(threash)
+        elif "hsv" in outtype.lower():
+            mask=GrayTo3DGray(hsvthreash)
     
 
         frame_masked = cv2.bitwise_and(background,mask)
-        frameWeighted = cv2.addWeighted(frame, 1, frame_masked, frameweighting, 0)
+        frameWeighted = cv2.addWeighted(frame, 1-frameweighting, frame_masked, frameweighting, 0)
         displayframe=cv2.hconcat([frame,mask,frameWeighted])
         cv2.imshow(outtype,displayframe)
         if cv2.waitKey(1)  & 0xFF == ord('q'):
@@ -197,18 +216,18 @@ def video_background(filevideo,backgroundfile,outtype="gray",percent=10,accumula
     cv2.destroyAllWindows()
 
 def main():
-    filevideo="videos/dance3.mp4"
-    backgroundfile="videos/Outpattern.jpg"
+    filevideo="videos/pexels-anthony-shkraba-7569398.mp4"
+    backgroundfile="videos/pexels-alex-andrews-816608.jpg"
 
 
-    video_analysis(filevideo,percent=20)
+   # video_analysis(filevideo,percent=20)
     #outtype= "gray", "newfade","pastfade"
- #   outtype= "gray_inv"
+    outtype= "hsv"
 
 
-  #  video_background(filevideo,backgroundfile,
-   # outtype=outtype,percent=5,
-    #accumulateWeightedval=0.05,frameweighting=0.6)
+    video_background(filevideo,backgroundfile,
+    outtype=outtype,percent=15,
+    accumulateWeightedval=0.05,frameweighting=1,threashval=[25,255])
     
 
 
